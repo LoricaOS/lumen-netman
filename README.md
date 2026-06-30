@@ -1,26 +1,26 @@
 # lumen-netman
 
-The network status panel for **AspisOS**, a capability-based,
+The network status panel for **LoricaOS**, a capability-based,
 no-ambient-authority x86-64 operating system built on the from-scratch
-[Aegis](https://github.com/AspisOS/Aegis) kernel. netman shows the live `eth0`
+[Aegis](https://github.com/LoricaOS/Aegis) kernel. netman shows the live `eth0`
 configuration — link state, IPv4 address, subnet, gateway, DNS, and MAC — and
 refreshes automatically. It is a standalone client of the
-[lumen](https://github.com/AspisOS/lumen) compositor, distributed as a
-[herald](https://github.com/AspisOS/AspisOS) system package and installed into
+[lumen](https://github.com/LoricaOS/lumen) compositor, distributed as a
+[herald](https://github.com/LoricaOS/LoricaOS) system package and installed into
 the `/apps` bundle tree.
 
 ## Where netman fits
 
-AspisOS is decomposed into independent repositories. netman is a leaf: a GUI
+LoricaOS is decomposed into independent repositories. netman is a leaf: a GUI
 application that talks to the compositor and queries the kernel for network
 state.
 
 | Repo | Role |
 |------|------|
-| [`AspisOS/Aegis`](https://github.com/AspisOS/Aegis) | The kernel. Provides `sys_netcfg` (the network-config query), `AF_UNIX` sockets, `memfd`, the filesystem, and the capability model. |
-| [`AspisOS/lumen`](https://github.com/AspisOS/lumen) | The compositor / display server. netman's window is a proxy surface owned by lumen. |
-| [`AspisOS/glyph`](https://github.com/AspisOS/glyph) | The GUI toolkit. Supplies the software renderer (`draw_*`, `draw_rounded_rect`, themed `THEME_*` colors) and the **client side of lumen's window protocol** (`lumen_client.h`). |
-| `AspisOS/lumen-netman` | **This repo.** An external Lumen client, the same pattern as settings and the calculator. |
+| [`LoricaOS/Aegis`](https://github.com/LoricaOS/Aegis) | The kernel. Provides `sys_netcfg` (the network-config query), `AF_UNIX` sockets, `memfd`, the filesystem, and the capability model. |
+| [`LoricaOS/lumen`](https://github.com/LoricaOS/lumen) | The compositor / display server. netman's window is a proxy surface owned by lumen. |
+| [`LoricaOS/glyph`](https://github.com/LoricaOS/glyph) | The GUI toolkit. Supplies the software renderer (`draw_*`, `draw_rounded_rect`, themed `THEME_*` colors) and the **client side of lumen's window protocol** (`lumen_client.h`). |
+| `LoricaOS/lumen-netman` | **This repo.** An external Lumen client, the same pattern as settings and the calculator. |
 
 netman does not touch the framebuffer or input devices. It connects to lumen
 over `/run/lumen.sock`, receives a shared `memfd` to draw into, and gets input
@@ -58,7 +58,7 @@ currently automatic and not user-editable here.
 
 ## Capabilities
 
-AspisOS has **no ambient authority**: a process can do nothing except through
+LoricaOS has **no ambient authority**: a process can do nothing except through
 capabilities granted by kernel policy at exec time. netman's policy
 (`pkg/etc/aegis/caps.d/netman`, installed to `/etc/aegis/caps.d/netman`) is:
 
@@ -86,7 +86,7 @@ packs a signed herald package.
 make MUSL_CC=/path/to/musl-gcc HERALD_KEY=/path/to/signing.key
 ```
 
-- `GLYPH_VERSION` pins the [glyph](https://github.com/AspisOS/glyph) toolkit
+- `GLYPH_VERSION` pins the [glyph](https://github.com/LoricaOS/glyph) toolkit
   release fetched by `tools/fetch-glyph.sh` (it unpacks `include/` and `lib/`
   into `toolkit/`).
 - `MUSL_CC` is the musl cross-compiler (defaults to `musl-gcc` on `PATH`; the
@@ -138,12 +138,12 @@ Build outputs (`component.elf`, `*.hpkg`, `*.hpkg.sig`) and the fetched
 ## Dependencies
 
 `depends=lumen` — netman is a client of the
-[lumen](https://github.com/AspisOS/lumen) compositor, so installing it pulls
+[lumen](https://github.com/LoricaOS/lumen) compositor, so installing it pulls
 lumen, which in turn ships the desktop fonts every Lumen client inherits. There
 is no separate font package.
 
 ## Sibling components
 
-- [bastion](https://github.com/AspisOS/bastion) — display manager / login greeter
-- [lumen-imageviewer](https://github.com/AspisOS/lumen-imageviewer) — image viewer
-- [lumen-sysmon](https://github.com/AspisOS/lumen-sysmon) — system monitor
+- [bastion](https://github.com/LoricaOS/bastion) — display manager / login greeter
+- [lumen-imageviewer](https://github.com/LoricaOS/lumen-imageviewer) — image viewer
+- [lumen-sysmon](https://github.com/LoricaOS/lumen-sysmon) — system monitor
