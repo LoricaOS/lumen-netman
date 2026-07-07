@@ -36,10 +36,20 @@ typedef struct {
     uint32_t gateway;
 } netcfg_info_t;
 
+/* Mirrors kernel wifi_net_pub_t (sys_socket.c / iwl_ax200.h). */
+typedef struct {
+    char    ssid[33];
+    uint8_t channel;
+    uint8_t sec;         /* 0 = open, 1 = secured */
+    uint8_t connected;
+    uint8_t pad;
+} wifi_net_t;
+#define WIFI_MAX 24
+
 /* ── Layout ───────────────────────────────────────────────────────────── */
 
 #define WIN_W       460
-#define WIN_H       388
+#define WIN_H       600
 #define PAD         SP_4
 #define CARD_R      R_MD
 #define CARD_PAD    SP_4
@@ -57,6 +67,9 @@ static struct {
     netcfg_info_t net;
     int           have_net;
     char          dns[64];
+
+    wifi_net_t    wifi[WIFI_MAX];
+    int           wifi_n;         /* -1 = no adapter, >=0 = count */
 
     int           refresh_x, refresh_y, refresh_w, refresh_h;
 } g_st;
@@ -125,13 +138,20 @@ static int refresh_state(void)
     char prev_dns[64];
     memcpy(prev_dns, g_st.dns, sizeof(prev_dns));
 
+    int prev_wifi_n = g_st.wifi_n;
+
     memset(&g_st.net, 0, sizeof(g_st.net));
     g_st.have_net = (syscall(SYS_NETCFG, 1, (long)&g_st.net, 0, 0) == 0);
     read_dns(g_st.dns, sizeof(g_st.dns));
 
+    /* op=2: read the Wi-Fi scan list (needs NET_SOCKET; ENODEV if no adapter). */
+    long n = syscall(SYS_NETCFG, 2, (long)g_st.wifi, WIFI_MAX, 0);
+    g_st.wifi_n = (n >= 0) ? (int)n : -1;
+
     return prev_have != g_st.have_net ||
            memcmp(&prev, &g_st.net, sizeof(prev)) != 0 ||
-           strcmp(prev_dns, g_st.dns) != 0;
+           strcmp(prev_dns, g_st.dns) != 0 ||
+           prev_wifi_n != g_st.wifi_n;
 }
 
 /* ── Render ───────────────────────────────────────────────────────────── */
@@ -150,6 +170,14 @@ static int kv_row(int x, int w, int y, const char *label, const char *value,
     int vw = text_w(TYPE_BODY, value);
     draw_text_sz(TYPE_BODY, x + w - CARD_PAD - vw, y, value, vcolor);
     return y + ROW_H;
+}
+
+/* small padlock glyph: a body rect + a shackle outline above it */
+static void draw_lock(int x, int y, uint32_t col)
+{
+    surface_t *s = &g_st.surf;
+    draw_rounded_outline(s, x + 2, y, 6, 7, 2, 1, col);   /* shackle */
+    draw_rounded_rect(s, x, y + 4, 10, 7, 2, col);        /* body */
 }
 
 static void draw_button(int x, int y, int w, int h, const char *label,
@@ -214,10 +242,57 @@ static void render(void)
              g_st.net.mac[3], g_st.net.mac[4], g_st.net.mac[5]);
     (void)kv_row(PAD, cw, y, "MAC Address", buf, THEME_TEXT);
 
-    /* ── Refresh button ── */
+    /* ── Refresh button (position first so the Wi-Fi list can size to fit) ── */
     int bw = 120, bh = 36;
     int bx = PAD;
     int by = WIN_H - PAD - bh;
+
+    /* ── Wi-Fi card ── */
+    int wc_y = dc_y + dc_h + SP_4;
+    int wc_h = by - SP_4 - wc_y;
+    draw_card(PAD, wc_y, cw, wc_h);
+    draw_text_sz(TYPE_CAPTION, PAD + CARD_PAD, wc_y + CARD_PAD,
+                 "WI-FI NETWORKS", THEME_TEXT_DIM);
+    int list_y = wc_y + CARD_PAD + TYPE_CAPTION + SP_3;
+    int row_step = ROW_H + 2;
+    int avail_rows = (wc_y + wc_h - CARD_PAD - list_y) / row_step;
+
+    if (g_st.wifi_n < 0) {
+        draw_text_sz(TYPE_BODY, PAD + CARD_PAD, list_y,
+                     "No Wi-Fi adapter detected", THEME_TEXT_FAINT);
+    } else if (g_st.wifi_n == 0) {
+        draw_text_sz(TYPE_BODY, PAD + CARD_PAD, list_y,
+                     "No networks found", THEME_TEXT_FAINT);
+    } else {
+        int rows = g_st.wifi_n < avail_rows ? g_st.wifi_n : avail_rows;
+        for (int i = 0; i < rows; i++) {
+            wifi_net_t *w = &g_st.wifi[i];
+            int ry = list_y + i * row_step;
+            if (w->connected)
+                draw_circle_filled(s, PAD + CARD_PAD + 4, ry + TYPE_BODY / 2, 4, THEME_OK);
+            draw_text_sz(TYPE_BODY, PAD + CARD_PAD + 16, ry, w->ssid,
+                         w->connected ? THEME_OK : THEME_TEXT);
+            /* right side: optional "ch N", then a lock for secured networks */
+            int rx = PAD + cw - CARD_PAD;
+            if (w->channel > 0) {
+                char chb[16];
+                snprintf(chb, sizeof(chb), "ch %d", w->channel);
+                int chw = text_w(TYPE_CAPTION, chb);
+                rx -= chw;
+                draw_text_sz(TYPE_CAPTION, rx, ry + 1, chb, THEME_TEXT_FAINT);
+                rx -= SP_3;
+            }
+            if (w->sec)
+                draw_lock(rx - 12, ry, THEME_TEXT_DIM);
+        }
+        if (g_st.wifi_n > rows) {
+            char more[24];
+            snprintf(more, sizeof(more), "+%d more", g_st.wifi_n - rows);
+            draw_text_sz(TYPE_CAPTION, PAD + CARD_PAD, list_y + rows * row_step,
+                         more, THEME_TEXT_FAINT);
+        }
+    }
+
     g_st.refresh_x = bx; g_st.refresh_y = by;
     g_st.refresh_w = bw; g_st.refresh_h = bh;
     draw_button(bx, by, bw, bh, "Refresh", THEME_ACCENT);
