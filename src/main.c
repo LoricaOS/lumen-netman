@@ -77,6 +77,31 @@ static struct {
 static volatile sig_atomic_t s_term = 0;
 static void sigterm_handler(int s) { (void)s; s_term = 1; }
 
+/* ── Top-bar menu ─────────────────────────────────────────────────────── */
+
+static int refresh_state(void);
+
+enum { CMD_RESCAN = 1, CMD_CLOSE };
+
+static void publish_menu(void)
+{
+    lumen_set_menu_t m;
+    glyph_menu_reset(&m, g_st.lwin->id);
+    int net = glyph_menu_add_col(&m, "Network");
+    glyph_menu_add_item(&m, net, "Rescan", CMD_RESCAN);
+    int file = glyph_menu_add_col(&m, "File");
+    glyph_menu_add_item(&m, file, "Close", CMD_CLOSE);
+    lumen_window_set_menu(g_st.lwin, &m);
+}
+
+static void menu_invoke(uint32_t cmd)
+{
+    switch (cmd) {
+    case CMD_RESCAN: if (refresh_state()) g_st.dirty = 1; break;
+    case CMD_CLOSE:  g_st.done = 1; break;
+    }
+}
+
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 
 static int text_w(int sz, const char *s)
@@ -337,6 +362,7 @@ int main(int argc, char **argv)
     };
 
     font_init();
+    publish_menu();
 
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -357,6 +383,7 @@ int main(int argc, char **argv)
 
         if (r == 1) {
             if (ev.type == LUMEN_EV_CLOSE_REQUEST) break;
+            if (ev.type == LUMEN_EV_MENU_INVOKE) menu_invoke(ev.menu.command);
             if (ev.type == LUMEN_EV_KEY && ev.key.pressed) {
                 char k = (char)ev.key.keycode;
                 if (k == '\x1b') break;
